@@ -7,7 +7,7 @@ type: public
 encoding: UTF-8
 followredirect: true
 links:
-  - https://torrentqq85.com/
+  - https://torrentqq93.com/
 legacylinks:
   - https://torrentqq76.com/
   - https://torrentqq77.com/
@@ -18,6 +18,14 @@ legacylinks:
   - https://torrentqq82.com/
   - https://torrentqq83.com/
   - https://torrentqq84.com/
+  - https://torrentqq85.com/
+  - https://torrentqq86.com/
+  - https://torrentqq87.com/
+  - https://torrentqq88.com/
+  - https://torrentqq89.com/
+  - https://torrentqq90.com/
+  - https://torrentqq91.com/
+  - https://torrentqq92.com/
 
 caps:
   categorymappings:
@@ -49,8 +57,9 @@ settings:
     default: Some download links on this site use a link to a direct file download service, instead of a .torrent link. Jackett does not support direct file downloads, so you will get a page-cannot-be-found error when you try them.
 
 download:
-  selector: a[href^="/torrent/download/"]
-  attribute: href
+  selectors:
+    - selector: a[href^="/torrent/download/"]
+      attribute: href
 
 search:
   paths:
@@ -79,7 +88,6 @@ search:
       selector: a[href$=".html"][title]
       attribute: href
     date:
-      # note: this will cause 0m date results for MM-dd dates that are higher than current date, as Jackett dateparse assumes year is now.
       selector: div.wr-date:contains("-")
       optional: true
       filters:

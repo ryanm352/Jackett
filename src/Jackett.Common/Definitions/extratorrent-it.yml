@@ -7,7 +7,7 @@ type: public
 encoding: UTF-8
 links:
   - https://extratorrents.it/
-  - https://extratorrent.unblockit.club/
+  - https://extratorrent.unblockit.li/
   - https://extratorrent.nocensor.space/
 legacylinks:
   - https://extratorrent.ag/
@@ -17,6 +17,8 @@ legacylinks:
   - https://extratorrent.unblockit.link/
   - https://extratorrent2.unblockninja.com/
   - https://extratorrent.unblockit.buzz/
+  - https://extratorrent.unblockit.club/
+  - https://extratorrent.unblockit.onl/
 
 caps:
   categorymappings:
@@ -942,7 +944,7 @@ settings: []
 
 search:
   paths:
-    - path: "{{ if .Keywords }}search/?search={{ .Keywords }}{{ else }}/home{{ end }}"
+    - path: "{{ if .Keywords }}search/?search={{ .Keywords }}{{ else }}home{{ end }}"
 
   rows:
     selector: tr[class^="tl"]

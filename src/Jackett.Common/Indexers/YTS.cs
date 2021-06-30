@@ -21,7 +21,7 @@ namespace Jackett.Common.Indexers
     {
         public override string[] AlternativeSiteLinks { get; protected set; } = {
             "https://yts.mx/",
-            "https://yts.unblockit.club/",
+            "https://yts.unblockit.li/",
             "https://yts.unblockninja.com/",
             "https://yts.nocensor.space/"
         };
@@ -34,7 +34,9 @@ namespace Jackett.Common.Indexers
             "https://yts.root.yt/",
             "https://yts.unblockit.ltd/",
             "https://yts.unblockit.buzz/",
-            "https://yts.unblockit.link/"
+            "https://yts.unblockit.club/",
+            "https://yts.unblockit.link/",
+            "https://yts.unblockit.onl/"
         };
 
         private string ApiEndpoint => SiteLink + "api/v2/list_movies.json";

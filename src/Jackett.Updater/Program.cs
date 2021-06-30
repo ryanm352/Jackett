@@ -271,7 +271,6 @@ namespace Jackett.Updater
                 "Definitions/avg.yml",
                 "Definitions/awesomehd.yml", // migrated to C#
                 "Definitions/b2s-share.yml",
-                "Definitions/badasstorrents.yml", // to be migrated to c#
                 "Definitions/bithq.yml",
                 "Definitions/bigtower.yml",
                 "Definitions/bitme.yml",
@@ -294,6 +293,7 @@ namespace Jackett.Updater
                 "Definitions/cztorrent.yml",
                 "Definitions/darmowetorenty.yml", // migrated to C#
                 "Definitions/demonsite.yml",
+                "Definitions/desitorrents.yml", // migrated to C#
                 "Definitions/digbt.yml",
                 "Definitions/documentarytorrents.yml",
                 "Definitions/downloadville.yml",
@@ -302,9 +302,10 @@ namespace Jackett.Updater
                 "Definitions/dxdhd.yml",
                 "Definitions/eggmeon.yml",
                 "Definitions/elitehd.yml",
-                "Definitions/elitetorrent-biz.yml",
                 "Definitions/elittracker.yml",
+                "Definitions/epizod.yml",
                 "Definitions/eotforum.yml",
+                "Definitions/erzsebet.yml",
                 "Definitions/estrenosdtl.yml",
                 "Definitions/ethor.yml",
                 "Definitions/evolutionpalace.yml",
@@ -317,6 +318,7 @@ namespace Jackett.Updater
                 "Definitions/freedomhd.yml",
                 "Definitions/fullmixmusic.yml",
                 "Definitions/funreleases.yml",
+                "Definitions/galeriens.yml",
                 "Definitions/gdf76.yml",
                 "Definitions/gfxnews.yml",
                 "Definitions/gods.yml",
@@ -350,6 +352,7 @@ namespace Jackett.Updater
                 "Definitions/korsar.yml",
                 "Definitions/lapausetorrents.yml",
                 "Definitions/leaguehd.yml", // renamed to lemonhd
+                "Definitions/lechaudron.yml",
                 "Definitions/lemencili.yml",
                 "Definitions/leparadisdunet.yml",
                 "Definitions/leporno.yml",
@@ -429,6 +432,7 @@ namespace Jackett.Updater
                 "Definitions/torrentgalaxyorg.yml", // renamed to torrentgalaxy
                 "Definitions/torrenthane.yml",
                 "Definitions/torrentkim.yml",
+                "Definitions/torrentproject.yml",
                 "Definitions/torrentquest.yml",
                 "Definitions/torrentrex.yml",
                 "Definitions/torrentseed.yml", // renamed to latinop2p #9065

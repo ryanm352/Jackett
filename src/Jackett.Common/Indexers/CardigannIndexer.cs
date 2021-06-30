@@ -241,50 +241,50 @@ namespace Jackett.Common.Indexers
                 switch (configurationItem)
                 {
                     case BoolConfigurationItem boolItem:
-                    {
-                        variables[variableKey] = variables[boolItem.Value ? ".True" : ".False"];
-                        break;
-                    }
+                        {
+                            variables[variableKey] = variables[boolItem.Value ? ".True" : ".False"];
+                            break;
+                        }
                     case StringConfigurationItem stringItem:
-                    {
-                        variables[variableKey] = stringItem.Value;
-                        break;
-                    }
+                        {
+                            variables[variableKey] = stringItem.Value;
+                            break;
+                        }
                     case PasswordConfigurationItem passwordItem:
-                    {
-                        variables[variableKey] = passwordItem.Value;
-                        break;
-                    }
+                        {
+                            variables[variableKey] = passwordItem.Value;
+                            break;
+                        }
                     case SingleSelectConfigurationItem selectItem:
-                    {
-                        variables[variableKey] = selectItem.Value;
-                        break;
-                    }
+                        {
+                            variables[variableKey] = selectItem.Value;
+                            break;
+                        }
                     case MultiSelectConfigurationItem multiSelectItem:
-                    {
-                        variables[variableKey] = multiSelectItem.Values;
-                        break;
-                    }
+                        {
+                            variables[variableKey] = multiSelectItem.Values;
+                            break;
+                        }
                     case DisplayImageConfigurationItem displayImageItem:
-                    {
-                        variables[variableKey] = displayImageItem.Value;
-                        break;
-                    }
+                        {
+                            variables[variableKey] = displayImageItem.Value;
+                            break;
+                        }
                     case DisplayInfoConfigurationItem displayInfoItem:
-                    {
-                        variables[variableKey] = displayInfoItem.Value;
-                        break;
-                    }
+                        {
+                            variables[variableKey] = displayInfoItem.Value;
+                            break;
+                        }
                     case HiddenStringConfigurationItem hiddenStringItem:
-                    {
-                        variables[variableKey] = hiddenStringItem.Value;
-                        break;
-                    }
+                        {
+                            variables[variableKey] = hiddenStringItem.Value;
+                            break;
+                        }
                     default:
-                    {
-                        //TODO Should this throw a NotSupportedException, as it used to?
-                        break;
-                    }
+                        {
+                            //TODO Should this throw a NotSupportedException, as it used to?
+                            break;
+                        }
                 }
             }
 
@@ -378,23 +378,23 @@ namespace Jackett.Common.Indexers
                         break;
                     case "eq": // Returns .True if equal
                     case "ne": // Returns .False if equal
-                    {
-                        var wantEqual = functionName == "eq";
-                        // eq/ne take exactly 2 params. Update the length to match
-                        // This removes the whitespace between params 2 and 3.
-                        // It shouldn't matter because the match starts at a word boundary
-                        if (parameters.Count > 2)
-                            functionLength = logicMatch.Groups[2].Captures[2].Index - functionStartIndex;
+                        {
+                            var wantEqual = functionName == "eq";
+                            // eq/ne take exactly 2 params. Update the length to match
+                            // This removes the whitespace between params 2 and 3.
+                            // It shouldn't matter because the match starts at a word boundary
+                            if (parameters.Count > 2)
+                                functionLength = logicMatch.Groups[2].Captures[2].Index - functionStartIndex;
 
-                        // Take first two parameters, convert vars to values and strip quotes on string literals
-                        // Counting distinct gives us 1 if equal and 2 if not.
-                        var isEqual =
-                            parameters.Take(2).Select(param => param.StartsWith("\"") ? param.Trim('"') : variables[param] as string)
-                                      .Distinct().Count() == 1;
+                            // Take first two parameters, convert vars to values and strip quotes on string literals
+                            // Counting distinct gives us 1 if equal and 2 if not.
+                            var isEqual =
+                                parameters.Take(2).Select(param => param.StartsWith("\"") ? param.Trim('"') : variables[param] as string)
+                                          .Distinct().Count() == 1;
 
-                        functionResult = isEqual == wantEqual ? ".True" : ".False";
-                        break;
-                    }
+                            functionResult = isEqual == wantEqual ? ".True" : ".False";
+                            break;
+                        }
                 }
 
                 template = template.Remove(functionStartIndex, functionLength)
@@ -1129,7 +1129,7 @@ namespace Jackett.Common.Indexers
             return Element.QuerySelector(Selector);
         }
 
-        protected string handleSelector(selectorBlock Selector, IElement Dom, Dictionary<string, object> variables = null)
+        protected string handleSelector(selectorBlock Selector, IElement Dom, Dictionary<string, object> variables = null, bool required = true)
         {
             if (Selector.Text != null)
             {
@@ -1147,7 +1147,9 @@ namespace Jackett.Common.Indexers
                     selection = QuerySelector(Dom, Selector.Selector);
                 if (selection == null)
                 {
-                    throw new Exception(string.Format("Selector \"{0}\" didn't match {1}", Selector.Selector, Dom.ToHtmlPretty()));
+                    if (required)
+                        throw new Exception(string.Format("Selector \"{0}\" didn't match {1}", Selector.Selector, Dom.ToHtmlPretty()));
+                    return null;
                 }
             }
 
@@ -1170,13 +1172,21 @@ namespace Jackett.Common.Indexers
                     }
                 }
                 if (value == null)
-                    throw new Exception(string.Format("None of the case selectors \"{0}\" matched {1}", string.Join(",", Selector.Case), selection.ToHtmlPretty()));
+                {
+                    if (required)
+                        throw new Exception(string.Format("None of the case selectors \"{0}\" matched {1}", string.Join(",", Selector.Case), selection.ToHtmlPretty()));
+                    return null;
+                }
             }
             else if (Selector.Attribute != null)
             {
                 value = selection.GetAttribute(Selector.Attribute);
                 if (value == null)
-                    throw new Exception(string.Format("Attribute \"{0}\" is not set for element {1}", Selector.Attribute, selection.ToHtmlPretty()));
+                {
+                    if (required)
+                        throw new Exception(string.Format("Attribute \"{0}\" is not set for element {1}", Selector.Attribute, selection.ToHtmlPretty()));
+                    return null;
+                }
             }
             else
             {
@@ -1252,7 +1262,7 @@ namespace Jackett.Common.Indexers
             foreach (var SearchPath in SearchPaths)
             {
                 // skip path if categories don't match
-                if (SearchPath.Categories != null && mappedCategories.Count > 0)
+                if (SearchPath.Categories.Count > 0)
                 {
                     var invertMatch = (SearchPath.Categories[0] == "!");
                     var hasIntersect = mappedCategories.Intersect(SearchPath.Categories).Any();
@@ -1401,9 +1411,16 @@ namespace Jackett.Common.Indexers
 
                                 string value = null;
                                 var variablesKey = ".Result." + FieldName;
+                                var isOptional = OptionalFields.Contains(Field.Key) || FieldModifiers.Contains("optional") || Field.Value.Optional;
                                 try
                                 {
-                                    value = handleSelector(Field.Value, Row, variables);
+                                    value = handleSelector(Field.Value, Row, variables, !isOptional);
+                                    if (isOptional && value == null)
+                                    {
+                                        variables[variablesKey] = null;
+                                        continue;
+                                    }
+
                                     switch (FieldName)
                                     {
                                         case "download":
@@ -1560,7 +1577,7 @@ namespace Jackett.Common.Indexers
                                 {
                                     if (!variables.ContainsKey(variablesKey))
                                         variables[variablesKey] = null;
-                                    if (OptionalFields.Contains(Field.Key) || FieldModifiers.Contains("optional") || Field.Value.Optional)
+                                    if (isOptional)
                                     {
                                         variables[variablesKey] = null;
                                         continue;
@@ -1740,46 +1757,85 @@ namespace Jackett.Common.Indexers
                 if (Download.Method == "post")
                     method = RequestType.POST;
 
-                if (Download.Selector != null)
+                if (Download.Selectors != null)
                 {
-                    var selector = applyGoTemplateText(Download.Selector, variables);
                     var headers = ParseCustomHeaders(Definition.Search?.Headers, variables);
-                    var response = await RequestWithCookiesAsync(link.ToString(), headers: headers);
-                    if (response.IsRedirect)
-                        response = await RequestWithCookiesAsync(response.RedirectingTo, headers: headers);
-                    var results = response.ContentString;
+                    var results = "";
                     var searchResultParser = new HtmlParser();
-                    var searchResultDocument = searchResultParser.ParseDocument(results);
-                    var downloadElement = searchResultDocument.QuerySelector(selector);
-                    if (downloadElement != null)
+
+                    foreach (var selector in Download.Selectors)
                     {
-                        logger.Debug(string.Format("CardigannIndexer ({0}): Download selector {1} matched:{2}", Id, selector, downloadElement.ToHtmlPretty()));
-                        var href = "";
-                        if (Download.Attribute != null)
+                        var querySelector = applyGoTemplateText(selector.Selector, variables);
+                        try
                         {
-                            href = downloadElement.GetAttribute(Download.Attribute);
-                            if (href == null)
-                                throw new Exception(string.Format("Attribute \"{0}\" is not set for element {1}", Download.Attribute, downloadElement.ToHtmlPretty()));
+
+                            var response = await RequestWithCookiesAsync(link.ToString(), headers: headers);
+                            if (response.IsRedirect)
+                                response = await RequestWithCookiesAsync(response.RedirectingTo, headers: headers);
+                            results = response.ContentString;
+                            var searchResultDocument = searchResultParser.ParseDocument(results);
+                            var downloadElement = searchResultDocument.QuerySelector(querySelector);
+                            if (downloadElement == null)
+                            {
+                                logger.Debug(
+                                    $"CardigannIndexer ({Id}): Download selector {querySelector} could not match any elements, retrying with next available selector.");
+                                continue;
+                            }
+
+                            logger.Debug(
+                                $"CardigannIndexer ({Id}): Download selector {querySelector} matched:{downloadElement.ToHtmlPretty()}");
+                            var href = "";
+                            if (selector.Attribute != null)
+                            {
+                                href = downloadElement.GetAttribute(selector.Attribute);
+                                if (href == null)
+                                    throw new Exception(
+                                        $"Attribute \"{selector.Attribute}\" is not set for element {downloadElement.ToHtmlPretty()}");
+                            }
+                            else
+                            {
+                                href = downloadElement.TextContent;
+                            }
+
+                            href = applyFilters(href, selector.Filters, variables);
+                            var torrentLink = resolvePath(href, link);
+                            if (torrentLink.Scheme != "magnet")
+                            {
+                                // Test link
+                                response = await base.RequestWithCookiesAsync(
+                                    torrentLink.ToString(), null, RequestType.GET, headers: headers);
+                                if (response.IsRedirect)
+                                    await FollowIfRedirect(response);
+                                var content = response.ContentBytes;
+                                if (content.Length >= 1 && content[0] != 'd')
+                                {
+                                    logger.Debug(
+                                        $"CardigannIndexer ({Id}): Download selector {querySelector}'s torrent file is invalid, retrying with next available selector");
+                                    continue;
+                                }
+                            }
+
+                            link = torrentLink;
+                            return await base.Download(link, method, link.ToString());
                         }
-                        else
+                        catch (Exception e)
                         {
-                            href = downloadElement.TextContent;
+                            logger.Error(e,
+                                $"CardigannIndexer ({Id}): An exception occurred while trying selector {querySelector}, retrying with next available selector"
+                                );
                         }
-                        href = applyFilters(href, Download.Filters, variables);
-                        link = resolvePath(href, link);
                     }
-                    else
-                    {
-                        logger.Error(string.Format("CardigannIndexer ({0}): Download selector {1} didn't match:\n{2}", Id, Download.Selector, results));
-                        throw new Exception(string.Format("Download selector {0} didn't match", Download.Selector));
-                    }
+
+                    logger.Error(
+                        $"CardigannIndexer ({Id}): Download selectors didn't match:\n{results}");
+                    throw new Exception($"Download selectors didn't match");
                 }
             }
             return await base.Download(link, method, link.ToString());
         }
 
         private Dictionary<string, string> ParseCustomHeaders(Dictionary<string, List<string>> customHeaders,
-                                                              Dictionary<string,object> variables)
+                                                              Dictionary<string, object> variables)
         {
             if (customHeaders == null)
                 return null;

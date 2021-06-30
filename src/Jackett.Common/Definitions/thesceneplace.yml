@@ -17,21 +17,24 @@ caps:
     - {id: 16, cat: TV/HD, desc: "TV x265"}
     - {id: 17, cat: TV/SD, desc: "TV XVID"}
     - {id: 18, cat: TV, desc: "TV PACKS"}
-    - {id: 25, cat: TV/Anime, desc: "TV KIDS"}
+    - {id: 25, cat: TV, desc: "TV KIDS"}
+    - {id: 38, cat: TV/SD, desc: "TV 480p"}
     - {id: 20, cat: Movies/HD, desc: "Movies x264"}
     - {id: 21, cat: Movies/HD, desc: "Movies x265"}
     - {id: 22, cat: Movies/SD, desc: "Movies XVID"}
     - {id: 23, cat: Movies, desc: "Movies PACKS"}
-    - {id: 24, cat: TV/Anime, desc: "Movies KIDS"}
+    - {id: 24, cat: Movies, desc: "Movies KIDS"}
     - {id: 35, cat: Movies/UHD, desc: "Movies 4K/UHD"}
     - {id: 36, cat: Movies/BluRay, desc: "Movies BluRay"}
+    - {id: 37, cat: Movies/SD, desc: "Movies 480p"}
     - {id: 27, cat: Audio/MP3, desc: "Music MP3"}
     - {id: 28, cat: Audio/Lossless, desc: "Music FLAC"}
     - {id: 29, cat: Audio, desc: "Music PACKS"}
-    - {id: 34, cat: Audio, desc: "Music karaoke "}
-    - {id: 30, cat: Books/EBook, desc: "ebooks"}
+    - {id: 34, cat: Audio, desc: "Music Karaoke "}
+    - {id: 30, cat: Books/EBook, desc: "eBooks"}
     - {id: 32, cat: PC/Games, desc: "Games PC"}
     - {id: 33, cat: Console, desc: "Games ROMS"}
+    - {id: 39, cat: Other, desc: "Misc"}
 
   modes:
     search: [q]
@@ -100,7 +103,7 @@ search:
     # does not support imdbid search and does not return imdb link in results
 
   rows:
-    selector: "table.lista > tbody > tr:has(a[href^=\"index.php?page=torrent-details&id=\"]){{ if .Config.freeleech }}:has(img[src=\"images/freeleech.gif\"]){{ else }}{{ end }}"
+    selector: "table.lista > tbody > tr:has(a[href^=\"index.php?page=torrent-details&id=\"]):not(:has(a[href^=\"index.php?page=userdetails&id=\"])){{ if .Config.freeleech }}:has(img[src=\"images/freeleech.gif\"]){{ else }}{{ end }}{{ if .Config.freeleech }}, table.lista > tbody > tr:has(a[href^=\"index.php?page=torrent-details&id=\"]):not(:has(a[href^=\"index.php?page=userdetails&id=\"])):has(img[src=\"images/gold.gif\"]){{ else }}{{ end }}"
 
   fields:
     category:
@@ -151,7 +154,17 @@ search:
         img[src="images/bronze.gif"]: 0.75
         "*": 1
     uploadvolumefactor:
-      text: 1
+      case:
+        img[src="images/2x.gif"]: 2
+        img[src="images/3x.gif"]: 3
+        img[src="images/4x.gif"]: 4
+        img[src="images/5x.gif"]: 5
+        img[src="images/6x.gif"]: 6
+        img[src="images/7x.gif"]: 7
+        img[src="images/8x.gif"]: 8
+        img[src="images/9x.gif"]: 9
+        img[src="images/10x.gif"]: 10
+        "*": 1
     minimumratio:
       text: 1.0
     minimumseedtime:

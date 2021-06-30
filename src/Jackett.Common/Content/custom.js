@@ -3,6 +3,9 @@ var basePath = '';
 var indexers = [];
 var configuredIndexers = [];
 var unconfiguredIndexers = [];
+var configuredTags = [];
+var availableFilters = [];
+var currentFilter = null;
 
 $.fn.inView = function () {
     if (!this.length) return false;
@@ -46,25 +49,43 @@ $(document).ready(function () {
     var pathPrefix = window.location.pathname.substr(0, index);
     api.root = pathPrefix + api.root;
 
+    const hashArgs = getHashArgs();
+    if ("indexers" in hashArgs)
+      currentFilter = hashArgs.filter
     bindUIButtons();
     loadJackettSettings();
 });
 
 function openSearchIfNecessary() {
-    const hashArgs = location.hash.substring(1).split('&').reduce((prev, item) =>
-        Object.assign({
-            [item.split('=')[0]]: (item.split('=').length < 2 ?
-                undefined :
-                decodeURIComponent(item.split('=')[1].replace(/\+/g, '%20')))
-        }, prev), {});
+    const hashArgs = getHashArgs();
     if ("search" in hashArgs) {
-        showSearch(hashArgs.tracker, hashArgs.search, hashArgs.category);
+        showSearch(hashArgs.filter, hashArgs.tracker, hashArgs.search, hashArgs.category);
     }
+}
+
+function getHashArgs() {
+    return location.hash.substring(1).split('&').reduce((prev, item) => Object.assign({
+        [item.split('=')[0]]: (item.split('=').length < 2 ?
+            undefined :
+            decodeURIComponent(item.split('=')[1].replace(/\+/g, '%20')))
+    }, prev), {});
 }
 
 function insertWordWrap(str) {
     // insert optional word wrap after punctuation to avoid overflows on long scene titles
     return str.replace(/([\.\-_\/\\])/g, "$1\u200B");
+}
+
+function type_filter(indexer) {
+  return indexer.type == this.value;
+}
+
+function tag_filter(indexer) {
+  return indexer.tags.map(t => t.toLowerCase()).indexOf(this.value.toLowerCase()) > -1;
+}
+
+function state_filter(indexer) {
+  return indexer.state == this.value;
 }
 
 function getJackettConfig(callback) {
@@ -131,11 +152,14 @@ function loadJackettSettings() {
 }
 
 function reloadIndexers() {
+    $('#filters').hide();
     $('#indexers').hide();
     api.getAllIndexers(function (data) {
         indexers = data;
         configuredIndexers = [];
         unconfiguredIndexers = [];
+        configuredTags = [];
+        availableFilters = [];
         for (var i = 0; i < data.length; i++) {
             var item = data[i];
             item.rss_host = resolveUrl(basePath + "/api/v2.0/indexers/" + item.id + "/results/torznab/api?apikey=" + api.key + "&t=search&cat=&q=");
@@ -169,12 +193,65 @@ function reloadIndexers() {
             else
                 unconfiguredIndexers.push(item);
         }
-        displayConfiguredIndexersList(configuredIndexers);
+
+        configuredTags = configuredIndexers.map(i => i.tags).reduce((a, g) => a.concat(g), []).filter((v, i, a) => a.indexOf(v) === i);
+
+        configureFilters(configuredIndexers);
+        
+        displayFilteredIndexersList(configuredIndexers, currentFilter);
+
         $('#indexers div.dataTables_filter input').focusWithoutScrolling();
         openSearchIfNecessary();
     }).fail(function () {
         doNotify("Error loading indexers, request to Jackett server failed, is server running ?", "danger", "glyphicon glyphicon-alert");
     });
+}
+
+function configureFilters(indexers) {
+    function add(f) {
+      if (availableFilters.find(x => x.id == f.id))
+        return;
+      if (!indexers.every(f.apply, f) && indexers.some(f.apply, f))
+        availableFilters.push(f);
+    }
+
+    availableFilters.push({id: "test:passed", apply: state_filter, value: "success" });
+    availableFilters.push({id: "test:failed", apply: state_filter, value: "error" });
+
+    ["public", "private", "semi-private"]
+      .map(t => { return { id: "type:" + t, apply: type_filter, value: t } })
+      .forEach(add);
+
+    configuredTags.sort()
+      .map(t => { return { id: "tag:" + t.toLowerCase(), apply: tag_filter, value: t }})
+      .forEach(add);
+}
+
+function displayFilteredIndexersList(indexers, filter) {
+    var active = availableFilters.find(x => x.id == filter);
+    if (availableFilters.length > 0) {
+        var filtersTemplate = Handlebars.compile($("#jackett-filters").html());
+        var filters = $(filtersTemplate({
+              filters: availableFilters,
+              active: active ? active.id : null
+            }));
+
+        $("li a", filters).on('click', function(){
+            displayFilteredIndexersList(configuredIndexers, $(this).data("id"));
+        });
+
+        $('#filters').empty();
+        $('#filters').append(filters);
+        $('#filters').fadeIn();
+    }
+    if (active) {
+        indexers = indexers.filter(active.apply, active);
+        currentFilter = active.id;
+    }
+    else {
+        currentFilter = null;
+    }
+    displayConfiguredIndexersList(indexers)
 }
 
 function displayConfiguredIndexersList(indexers) {
@@ -239,36 +316,7 @@ function displayUnconfiguredIndexersList() {
         $(btn).click(function () {
             $('#select-indexer-modal').modal('hide').on('hidden.bs.modal', function (e) {
                 var indexerId = $(btn).attr("data-id");
-                api.getIndexerConfig(indexerId, function (data) {
-                    if (data.result !== undefined && data.result == "error") {
-                        doNotify("Error: " + data.error, "danger", "glyphicon glyphicon-alert");
-                        return;
-                    }
-                    api.updateIndexerConfig(indexerId, data, function (data) {
-                        if (data == undefined) {
-                            reloadIndexers();
-                            doNotify("Successfully configured " + name, "success", "glyphicon glyphicon-ok");
-                        } else if (data.result == "error") {
-                            if (data.config) {
-                                populateConfigItems(configForm, data.config);
-                            }
-                            doNotify("Configuration failed: " + data.error, "danger", "glyphicon glyphicon-alert");
-                        }
-                    }).fail(function (data) {
-                        if (data.responseJSON.error !== undefined) {
-                            var indexEnd = 2048 - "https://github.com/Jackett/Jackett/issues/new?title=[".length - indexerId.length - "] ".length - " (Config)".length; // keep url <= 2k #5104
-                            var githubrepo = "Jackett/Jackett";
-                            var githubtext = "this indexer";
-                            if (data.responseJSON.error.includes("check FlareSolverr logs") || data.responseJSON.error.includes("cookies provided by FlareSolverr are not valid")) {
-                                githubrepo = "FlareSolverr/FlareSolverr";
-                                githubtext = "FlareSolverr";
-                            }
-                            doNotify("An error occurred while configuring this indexer<br /><b>" + data.responseJSON.error.substring(0, indexEnd) + "</b><br /><i><a href=\"https://github.com/" + githubrepo + "/issues/new?title=[" + indexerId + "] " + data.responseJSON.error.substring(0, indexEnd) + " (Config)\" target=\"_blank\">Click here to open an issue on GitHub for " + githubtext + ".</a><i>", "danger", "glyphicon glyphicon-alert", false);
-                        } else {
-                            doNotify("An error occurred while configuring this indexer, is Jackett server running ?", "danger", "glyphicon glyphicon-alert");
-                        }
-                    });
-                });
+                addIndexer(indexerId, true);
             });
         });
     });
@@ -311,6 +359,9 @@ function displayUnconfiguredIndexersList() {
                 }
             });
         },
+        "drawCallback": function (settings) {
+            addCheckOnCellClick();
+        },
         "stateSave": true,
         "stateDuration": 0,
         "fnStateSaveParams": function (oSettings, sValue) {
@@ -323,47 +374,58 @@ function displayUnconfiguredIndexersList() {
             [10, 20, 50, 100, 250, 500, -1],
             [10, 20, 50, 100, 250, 500, "All"]
         ],
+        "select": {
+            style: 'os',
+            selector: 'td:first-child'
+        },
         "order": [
-            [0, "asc"]
+            [1, "asc"]
         ],
         "columnDefs": [{
-                "name": "name",
+                "name": "select",
                 "targets": 0,
                 "visible": true,
-                "searchable": true,
-                "orderable": true
+                "searchable": false,
+                "orderable": false
             },
             {
-                "name": "description",
+                "name": "name",
                 "targets": 1,
                 "visible": true,
                 "searchable": true,
                 "orderable": true
             },
             {
-                "name": "type",
+                "name": "description",
                 "targets": 2,
                 "visible": true,
                 "searchable": true,
                 "orderable": true
             },
             {
-                "name": "type_string",
+                "name": "type",
                 "targets": 3,
-                "visible": false,
+                "visible": true,
                 "searchable": true,
-                "orderable": true,
+                "orderable": true
+            },
+            {
+                "name": "type_string",
+                "targets": 4,
+                "visible": false,
+                "searchable": false,
+                "orderable": false,
             },
             {
                 "name": "language",
-                "targets": 4,
+                "targets": 5,
                 "visible": true,
                 "searchable": true,
                 "orderable": true
             },
             {
                 "name": "buttons",
-                "targets": 5,
+                "targets": 6,
                 "visible": true,
                 "searchable": false,
                 "orderable": false
@@ -384,7 +446,62 @@ function displayUnconfiguredIndexersList() {
 
     $("#modals").append(UnconfiguredIndexersDialog);
 
+    $('#add-selected-indexers').click(function () {
+        var selectedIndexers = $('#unconfigured-indexer-datatable').DataTable().$('input[type="checkbox"]');
+        var hasSelectedIndexers = selectedIndexers.is(':checked');
+        if (hasSelectedIndexers) {
+            doNotify("Adding selected Indexers, please wait...", "info", "glyphicon glyphicon-transfer", false);
+            $('#select-indexer-modal button').attr('disabled', true);
+
+            addIndexers(selectedIndexers,
+                addSelectedIndexersSuccess,
+                addSelectedIndexersError);
+        } else {
+            doNotify("Error: You must select more than one indexer", "danger", "glyphicon glyphicon-alert");
+        }
+    });
+
     UnconfiguredIndexersDialog.modal("show");
+}
+
+function addSelectedIndexersSuccess() {
+    $.notifyClose();
+    $('#select-indexer-modal').modal('hide');
+    doNotify("Selected indexers successfully added.", "success", "glyphicon glyphicon-ok");
+    $('#select-indexer-modal button').attr('disabled', false);
+}
+
+function addSelectedIndexersError(e, xhr, options, err) {
+    doNotify("Configuration failed", "danger", "glyphicon glyphicon-alert");
+}
+
+function addCheckOnCellClick() {
+    $('td.checkboxColumn')
+        .off('click')
+        .on('click', (function (event) {
+            if (!$(event.target).is('input')) {
+                $('input:checkbox', this).prop('checked', function (i, value) {
+                    return !value;
+                });
+            }
+        }));
+}
+
+function addIndexers(selectedIndexerList, successCallback, errorCallback) {
+    $(document).ajaxStop(function () {
+        if (successCallback == addSelectedIndexersSuccess) {
+            $(document).ajaxStop().unbind(); // Keep future AJAX events from effecting this
+            successCallback();
+        }
+    }).ajaxError(function (e, xhr, options, err) {
+        errorCallback(e, xhr, options, err);
+    });
+
+    selectedIndexerList.each(function () {
+        if (this.checked) {
+            addIndexer($(this).data('id'), false);
+        }
+    })
 }
 
 function createDropDownHtml(column, exactMatch) {
@@ -407,6 +524,42 @@ function createDropDownHtml(column, exactMatch) {
         });
 
     return select;
+}
+
+function addIndexer(indexerId, displayNotification) {
+    api.getIndexerConfig(indexerId, function (data) {
+        if (data.result !== undefined && data.result == "error") {
+            doNotify("Error: " + data.error, "danger", "glyphicon glyphicon-alert");
+            return;
+        }
+
+        api.updateIndexerConfig(indexerId, data, function (data) {
+            if (data == undefined) {
+                reloadIndexers();
+                if (displayNotification) {
+                    doNotify("Successfully configured " + indexerId, "success", "glyphicon glyphicon-ok");
+                }
+            } else if (data.result == "error") {
+                if (data.config) {
+                    populateConfigItems(configForm, data.config);
+                }
+                doNotify("Configuration failed: " + data.error, "danger", "glyphicon glyphicon-alert");
+            }
+        }).fail(function (data) {
+            if (data.responseJSON.error !== undefined) {
+                var indexEnd = 2048 - "https://github.com/Jackett/Jackett/issues/new?title=[".length - indexerId.length - "] ".length - " (Config)".length; // keep url <= 2k #5104
+                var githubrepo = "Jackett/Jackett";
+                var githubtext = "this indexer";
+                if (data.responseJSON.error.includes("check FlareSolverr logs") || data.responseJSON.error.includes("cookies provided by FlareSolverr are not valid")) {
+                    githubrepo = "FlareSolverr/FlareSolverr";
+                    githubtext = "FlareSolverr";
+                }
+                doNotify("An error occurred while configuring this indexer<br /><b>" + data.responseJSON.error.substring(0, indexEnd) + "</b><br /><i><a href=\"https://github.com/" + githubrepo + "/issues/new?title=[" + indexerId + "] " + data.responseJSON.error.substring(0, indexEnd) + " (Config)\" target=\"_blank\">Click here to open an issue on GitHub for " + githubtext + ".</a><i>", "danger", "glyphicon glyphicon-alert", false);
+            } else {
+                doNotify("An error occurred while configuring this indexer, is Jackett server running ?", "danger", "glyphicon glyphicon-alert");
+            }
+        });
+    });
 }
 
 function copyToClipboard(text) {
@@ -483,18 +636,21 @@ function prepareSearchButtons(element) {
         var $btn = $(btn);
         var id = $btn.data("id");
         $btn.click(function () {
-            window.location.hash = "search&tracker=" + id;
-            showSearch(id);
+            window.location.hash = "search&tracker=" + id + (currentFilter ? "&filter=" + currentFilter : "");
+            showSearch(currentFilter, id);
         });
     });
 }
 
 function prepareSetupButtons(element) {
     element.find('.indexer-setup').each(function (i, btn) {
-        var indexer = configuredIndexers[i];
-        $(btn).click(function () {
-            displayIndexerSetup(indexer.id, indexer.name, indexer.caps, indexer.link, indexer.alternativesitelinks, indexer.description);
-        });
+        var $btn = $(btn);
+        var id = $btn.data("id");
+        var indexer = configuredIndexers.find(i => i.id === id);
+        if (indexer)
+          $btn.click(function () {
+              displayIndexerSetup(indexer.id, indexer.name, indexer.caps, indexer.link, indexer.alternativesitelinks, indexer.description);
+          });
     });
 }
 
@@ -533,6 +689,10 @@ function updateTestState(id, state, message, parent) {
     }).rows().invalidate('dom');
     if (state != "inprogres")
         dt.draw();
+
+    var indexer = configuredIndexers.find(x => x.id == id);
+    if (indexer)
+        indexer.state = state;
 }
 
 function testIndexer(id, notifyResult) {
@@ -610,9 +770,30 @@ function populateConfigItems(configForm, config) {
         var item = config[i];
         var setupValueTemplate = Handlebars.compile($("#setup-item-" + item.type).html());
         item.value_element = setupValueTemplate(item);
-        var template = setupItemTemplate(item);
+        var template = $(setupItemTemplate(item));
         $formItemContainer.append(template);
+        setupConfigItem(template, item);
     }
+}
+
+function setupConfigItem(configItem, item) {
+  switch (item.type) {
+    case "inputtags": {
+        configItem.find("input").tagify({
+          dropdown: {
+            enabled: 0,
+            position: "text"
+          },
+          separator: item.separator || ",",
+          whitelist: item.whitelist || [],
+          blacklist: item.blacklist || [],
+          pattern: item.pattern || null,
+          delimiters: item.delimiters || item.separator || ",",
+          originalInputValueFormat: function (values) { return values.map(item => item.value.toLowerCase()).join(this.separator); }
+        });
+      }
+      break;
+  }
 }
 
 function newConfigModal(title, config, caps, link, alternativesitelinks, description) {
@@ -637,6 +818,8 @@ function newConfigModal(title, config, caps, link, alternativesitelinks, descrip
             return false;
         });
     }
+
+    $("div[data-id='tags'] input", configForm).data("tagify").settings.whitelist = configuredTags;
 
     return configForm;
 }
@@ -668,8 +851,12 @@ function getConfigModalJson(configForm) {
                 $el.find(".setup-item-inputcheckbox input:checked").each(function () {
                     itemEntry.values.push($(this).val());
                 });
+                break;
             case "inputselect":
                 itemEntry.value = $el.find(".setup-item-inputselect select").val();
+                break;
+            case "inputtags":
+                itemEntry.value = $el.find(".setup-item-inputtags input").val();
                 break;
         }
         configJson.push(itemEntry)
@@ -802,14 +989,15 @@ function updateReleasesRow(row) {
     }
 }
 
-function showSearch(selectedIndexer, query, category) {
+function showSearch(selectedFilter, selectedIndexer, query, category) {
     var selectedIndexers = [];
     if (selectedIndexer)
-        selectedIndexers = selectedIndexer.split(",");
+      selectedIndexers = selectedIndexer.split(",");
     $('#select-indexer-modal').remove();
     var releaseTemplate = Handlebars.compile($("#jackett-search").html());
     var releaseDialog = $(releaseTemplate({
-        indexers: configuredIndexers
+        filters: availableFilters,
+        active: selectedFilter
     }));
 
     $("#modals").append(releaseDialog);
@@ -820,8 +1008,31 @@ function showSearch(selectedIndexer, query, category) {
 
     releaseDialog.on('hidden.bs.modal', function (e) {
         $('#indexers div.dataTables_filter input').focusWithoutScrolling();
-        window.location.hash = '';
+        window.location.hash = currentFilter ? "indexers&filter=" + currentFilter : '';
     });
+
+    var setTrackers = function (filterId, trackers) {
+        var select = $('#searchTracker');
+        var selected = select.val();
+        var filter = availableFilters.find(f => f.id == filterId);
+        if (filter)
+          trackers = trackers.filter(filter.apply,filter);
+        var options = trackers.map(t => {
+          return {
+            label: t.name,
+            value: t.id
+          }
+        });
+        select.multiselect('dataprovider', options);
+        select.val(selected).multiselect("refresh");
+    };
+
+    $('#searchFilter').change(jQuery.proxy(function () {
+        var filterId = $('#searchFilter').val();
+        setTrackers(filterId, this.items);
+    }, {
+        items: configuredIndexers
+    }));
 
     var setCategories = function (trackers, items) {
         var cats = {};
@@ -869,6 +1080,7 @@ function showSearch(selectedIndexer, query, category) {
             return;
         }
         var searchString = releaseDialog.find('#searchquery').val();
+        var filterId = releaseDialog.find('#searchFilter').val();
         var queryObj = {
             Query: searchString,
             Category: releaseDialog.find('#searchCategory').val(),
@@ -878,14 +1090,15 @@ function showSearch(selectedIndexer, query, category) {
         window.location.hash = Object.entries({
             search: encodeURIComponent(queryObj.Query).replace(/%20/g, '+'),
             tracker: queryObj.Tracker.join(","),
-            category: queryObj.Category.join(",")
-        }).map(([k, v], i) => k + '=' + v).join('&');
+            category: queryObj.Category.join(","),
+            filter: filterId ? encodeURIComponent(filterId) : ""
+        }).filter(([k, v]) => v).map(([k, v], i) => k + '=' + v).join('&');
 
         $('#jackett-search-perform').html($('#spinner').html());
         $('#searchResults div.dataTables_filter input').val("");
         clearSearchResultTable($('#searchResults'));
 
-        var trackerId = "all";
+        var trackerId = filterId || "all";
         api.resultsForIndexer(trackerId, queryObj, function (data) {
             for (var i = 0; i < data.Results.length; i++) {
                 var item = data.Results[i];
@@ -906,16 +1119,14 @@ function showSearch(selectedIndexer, query, category) {
 
     var searchTracker = releaseDialog.find("#searchTracker");
     var searchCategory = releaseDialog.find('#searchCategory');
-    searchCategory.multiselect({
+    var searchFilter = releaseDialog.find('#searchFilter');
+    
+    searchFilter.multiselect({
         maxHeight: 400,
         enableFiltering: true,
-        includeSelectAllOption: true,
         enableCaseInsensitiveFiltering: true,
-        nonSelectedText: 'Any'
+        nonSelectedText: 'All'
     });
-    if (selectedIndexers)
-        searchTracker.val(selectedIndexers);
-    searchTracker.trigger("change");
 
     updateSearchResultTable($('#searchResults'), []);
     clearSearchResultTable($('#searchResults'));
@@ -928,6 +1139,29 @@ function showSearch(selectedIndexer, query, category) {
         nonSelectedText: 'All'
     });
 
+    searchCategory.multiselect({
+      maxHeight: 400,
+      enableFiltering: true,
+      includeSelectAllOption: true,
+      enableCaseInsensitiveFiltering: true,
+      nonSelectedText: 'Any'
+    });
+
+    if (availableFilters.length > 0) {
+      if (selectedFilter) {
+        searchFilter.val(selectedFilter);
+        searchFilter.multiselect("refresh");
+      }
+      searchFilter.trigger("change");
+    }
+    else
+      setTrackers(selectedFilter, configuredIndexers);
+
+    if (selectedIndexers) {
+      searchTracker.val(selectedIndexers);
+      searchTracker.multiselect("refresh");
+    }
+    searchTracker.trigger("change");
 
     if (category !== undefined) {
         searchCategory.val(category.split(","));
@@ -1116,6 +1350,7 @@ function bindUIButtons() {
     $('#jackett-add-indexer').click(function () {
         $("#modals").empty();
         displayUnconfiguredIndexersList();
+        addCheckOnCellClick();
         $('#unconfigured-indexer-datatable tfoot tr').insertAfter($('#unconfigured-indexer-datatable thead tr'));
         $('#unconfigured-indexer-datatable').DataTable().search('').columns().search('').draw();
     });
@@ -1231,8 +1466,8 @@ function bindUIButtons() {
     });
 
     $("#jackett-show-search").click(function () {
-        showSearch(null);
-        window.location.hash = "search";
+        showSearch(currentFilter);
+        window.location.hash = "search" + (currentFilter ? "&filter=" + currentFilter : "");
     });
 
     $("#view-jackett-logs").click(function () {

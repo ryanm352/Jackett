@@ -8,7 +8,7 @@ encoding: UTF-8
 followredirect: true
 links:
   - https://www.torrentdownload.info/
-  - https://torrentdownload.unblockit.club/
+  - https://torrentdownload.unblockit.li/
   - https://torrentdownload.nocensor.space/
 legacylinks:
   - https://torrentdownload.unblockit.pro/
@@ -34,6 +34,8 @@ legacylinks:
   - https://torrentdownload.unblockit.link/
   - https://torrentdownload.unblockit.buzz/
   - https://torrentdownload.unblocked.monster/
+  - https://torrentdownload.unblockit.club/
+  - https://torrentdownload.unblockit.onl/
 
 caps:
   categorymappings:
@@ -112,8 +114,9 @@ settings:
       _: size
 
 download:
-  selector: a[href^="magnet:?xt="]
-  attribute: href
+  selectors:
+    - selector: a[href^="magnet:?xt="]
+      attribute: href
 
 login:
   method: cookie

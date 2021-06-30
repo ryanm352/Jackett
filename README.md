@@ -36,6 +36,7 @@ A third-party Golang SDK for Jackett is available from [webtor-io/go-jackett](ht
  * AniRena
  * AniSource
  * AudioBook Bay (ABB)
+ * Badass Torrents
  * BigFANGroup
  * BitRu
  * BT.etree
@@ -52,8 +53,8 @@ A third-party Golang SDK for Jackett is available from [webtor-io/go-jackett](ht
  * Demonoid
  * dmhy
  * E-Hentai
+ * elitetorrent
  * emtrek
- * Epizod
  * Erai-Raws
  * ETTV
  * EXT Torrents
@@ -149,7 +150,6 @@ A third-party Golang SDK for Jackett is available from [webtor-io/go-jackett](ht
  * TorrentMafya
  * TorrentMax (토렌트맥스)
  * TorrentParadise
- * TorrentProject
  * TorrentProject2
  * TorrentQQ (토렌트큐큐)
  * Torrents.csv
@@ -158,6 +158,7 @@ A third-party Golang SDK for Jackett is available from [webtor-io/go-jackett](ht
  * TorrentView (토렌트뷰)
  * TorrentWhiz ( 토렌트위즈)
  * truPornolabs
+ * ttobogo
  * Underverse
  * UnionDHT
  * VSTHouse
@@ -186,11 +187,11 @@ A third-party Golang SDK for Jackett is available from [webtor-io/go-jackett](ht
  * DimeADozen (EzTorrent)
  * DXP (Deaf Experts)
  * EniaHD
- * Erzsebet
  * Erzsebet.pl
  * ExKinoRay
  * Genesis-Movement
  * HamsterStudio
+ * HD-CzTorrent
  * HunTorrent
  * IV-Torrents
  * KinoNaVse100
@@ -207,6 +208,7 @@ A third-party Golang SDK for Jackett is available from [webtor-io/go-jackett](ht
  * PornoLab
  * PussyTorrents
  * Rainbow Tracker
+ * RGFootball
  * RiperAM
  * RockBox
  * RuTracker
@@ -247,7 +249,7 @@ A third-party Golang SDK for Jackett is available from [webtor-io/go-jackett](ht
  * anasch.cc
  * AnimeBytes (AB)
  * AnimeTorrents (AnT)
- * AnimeWorld (AST4u) [![(invite needed)][inviteneeded]](#)
+ * AnimeWorld [![(invite needed)][inviteneeded]](#)
  * Anthelion
  * Araba Fenice (Phoenix) [![(invite needed)][inviteneeded]](#)
  * ArabP2P
@@ -341,7 +343,6 @@ A third-party Golang SDK for Jackett is available from [webtor-io/go-jackett](ht
  * FunkyTorrents (FT) [![(invite needed)][inviteneeded]](#)
  * Fuzer (FZ)
  * GFXPeers
- * Galeriens (LaPauseTorrents)
  * Gay-Torrents.net
  * Gay-Torrents.org [![(invite needed)][inviteneeded]](#)
  * GAYtorrent.ru
@@ -395,7 +396,6 @@ A third-party Golang SDK for Jackett is available from [webtor-io/go-jackett](ht
  * LastFiles
  * LatinoP2P
  * Le Saloon
- * LeChaudron
  * LemonHD
  * LearnFlakes
  * LegacyHD (HD4Free)
@@ -425,14 +425,15 @@ A third-party Golang SDK for Jackett is available from [webtor-io/go-jackett](ht
  * NorBits
  * Nordic+
  * Oasis
+ * Obscure
  * oMg[WtF]trackr
  * OpenCD
+ * Oppaitime [![(invite needed)][inviteneeded]](#)
  * Orpheus
  * OshenPT
  * Ourbits (HDPter)
  * P2PBG
  * P2PElite
- * Partis [![(invite needed)][inviteneeded]](#)
  * PassThePopcorn (PTP)
  * Peers.FM
  * Pirata Digital
@@ -476,6 +477,7 @@ A third-party Golang SDK for Jackett is available from [webtor-io/go-jackett](ht
  * SDBits [![(invite needed)][inviteneeded]](#)
  * Secret Cinema
  * SeedFile (SF)
+ * ShareFiles
  * Shareisland
  * Shazbat
  * SiamBIT
@@ -584,6 +586,32 @@ Using the all indexer has no advantages (besides reduced management overhead), o
 
 To get all Jackett indexers including their capabilities you can use `t=indexers` on the all indexer. To get only configured/unconfigured indexers you can also add `configured=true/false` as a query parameter.
 
+### Filter indexers
+
+Another special "filter" indexer is available at `/api/v2.0/indexers/<filter>/results/torznab`
+It will query the configured indexers that match the `<filter>` expression criterias and return the combined results as "all".
+
+Supported filters
+Filter | Condition
+-|-
+`type:<type>` | where the indexer type is equal to `<type>`
+`tag:<tag>` | where the indexer tags contains `<tag>`
+`lang:<tag>` | where the indexer language start with `<lang>`
+`test:{passed\|failed}` | where the last indexer test performed `passed` or `failed`
+`status:{healthy\|failing\|unknown}` | where the indexer state is `healthy` (succesfully operates in the last minutes), `failing` (generates errors in the recent call) or `unknown` (unused for a while)
+
+Supported operators
+Operator | Condition
+-|-
+`!<expr>` | where not `<expr>`
+`<expr1>+<expr2>[+<expr3>...]` | where `<expr1>` and `<expr2>` [and `<expr3>`...]
+`<expr1>,<expr2>[,<expr3>...]` | where `<expr1>` or `<expr2>` [or `<expr3>`...]
+
+Example 1:
+The "filter" indexer at `/api/v2.0/indexers/tag:group1,!type:private+lang:en/results/torznab` will query all the configured indexers tagged with `group1` or all the indexers not private and with `en` language (`en-en`,`en-us`,...)
+
+Example 2:
+The "filter" indexer at `/api/v2.0/indexers/!status:failing,test:passed` will query all the configured indexers not `failing` or which `passed` its last test.
 
 ## Installation on Windows
 We recommend you install Jackett as a Windows service using the supplied installer. You may also download the zipped version if you would like to configure everything manually.

@@ -9,10 +9,10 @@ using Jackett.Common.Models.IndexerConfig;
 using Jackett.Common.Services.Interfaces;
 using Jackett.Common.Utils;
 using Jackett.Common.Utils.Clients;
-using Polly;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using NLog;
+using Polly;
 using static Jackett.Common.Models.IndexerConfig.ConfigurationData;
 
 namespace Jackett.Common.Indexers
@@ -34,6 +34,16 @@ namespace Jackett.Common.Indexers
         public Encoding Encoding { get; protected set; }
 
         public virtual bool IsConfigured { get; protected set; }
+        public virtual string[] Tags { get; protected set; }
+
+        // https://github.com/Jackett/Jackett/issues/3292#issuecomment-838586679
+        private TimeSpan HealthyStatusValidity => cacheService.CacheTTL + cacheService.CacheTTL;
+        private static readonly TimeSpan ErrorStatusValidity = TimeSpan.FromMinutes(10);
+        private static readonly TimeSpan MaxStatusValidity = TimeSpan.FromDays(1);
+
+        private int errorCount;
+        private DateTime expireAt;
+
         protected Logger logger;
         protected IIndexerConfigurationService configurationService;
         protected IProtectionService protectionService;
@@ -58,6 +68,10 @@ namespace Jackett.Common.Indexers
                     SaveConfig();
             }
         }
+
+        public virtual bool IsHealthy => errorCount == 0 && expireAt > DateTime.Now;
+        public virtual bool IsFailing => errorCount > 0 && expireAt > DateTime.Now;
+
 
         public abstract TorznabCapabilities TorznabCaps { get; protected set; }
 
@@ -90,6 +104,8 @@ namespace Jackett.Common.Indexers
         {
             CookieHeader = string.Empty;
             IsConfigured = false;
+            errorCount = 0;
+            expireAt = DateTime.MinValue;
         }
 
         public virtual void SaveConfig() => configurationService.Save(this as IIndexer, configData.ToJson(protectionService, forDisplay: false));
@@ -148,6 +164,8 @@ namespace Jackett.Common.Indexers
             // check whether the site link is well-formatted
             var siteUri = new Uri(configData.SiteLink.Value);
             SiteLink = configData.SiteLink.Value;
+
+            Tags = configData.Tags.Values.Select(t => t.ToLowerInvariant()).ToArray();
         }
 
         public void LoadFromSavedConfiguration(JToken jsonConfig)
@@ -382,10 +400,14 @@ namespace Jackett.Common.Indexers
                 results = FilterResults(query, results);
                 results = FixResults(query, results);
                 cacheService.CacheResults(this, query, results.ToList());
+                errorCount = 0;
+                expireAt = DateTime.Now.Add(HealthyStatusValidity);
                 return new IndexerResult(this, results, false);
             }
             catch (Exception ex)
             {
+                var delay = Math.Min(MaxStatusValidity.TotalSeconds, ErrorStatusValidity.TotalSeconds * Math.Pow(2, errorCount++));
+                expireAt = DateTime.Now.AddSeconds(delay);
                 throw new IndexerException(this, ex);
             }
         }
@@ -506,7 +528,7 @@ namespace Jackett.Common.Indexers
             return await Download(uncleanLink, RequestType.GET);
         }
 
-        protected async Task<byte[]> Download(Uri link, RequestType method, string referer = null, Dictionary<string, string>headers = null)
+        protected async Task<byte[]> Download(Uri link, RequestType method, string referer = null, Dictionary<string, string> headers = null)
         {
             // return magnet link
             if (link.Scheme == "magnet")
@@ -765,7 +787,7 @@ namespace Jackett.Common.Indexers
 
     public abstract class BaseCachingWebIndexer : BaseWebIndexer
     {
-        protected BaseCachingWebIndexer(string link,string id, string name, string description,
+        protected BaseCachingWebIndexer(string link, string id, string name, string description,
                                         IIndexerConfigurationService configService, WebClient client, Logger logger,
                                         ConfigurationData configData, IProtectionService p, ICacheService cacheService,
                                         TorznabCapabilities caps = null, string downloadBase = null)

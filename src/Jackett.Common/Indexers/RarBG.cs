@@ -22,7 +22,7 @@ namespace Jackett.Common.Indexers
     public class RarBG : BaseWebIndexer
     {
         // API doc: https://torrentapi.org/apidocs_v2.txt?app_id=Jackett
-        private const string ApiEndpoint = "https://torrentapi.org/pubapi_v2.php";
+        private string ApiEndpoint => ((StringConfigurationItem)configData.GetDynamic("apiEndpoint")).Value;
         private readonly TimeSpan TokenDuration = TimeSpan.FromMinutes(14); // 15 minutes expiration
         private readonly string _appId;
         private string _token;
@@ -69,6 +69,9 @@ namespace Jackett.Common.Indexers
 
             webclient.requestDelay = 2.5; // The api has a 1req/2s limit
 
+            var ConfigApiEndpoint = new StringConfigurationItem("API URL") { Value = "https://torrentapi.org/pubapi_v2.php" };
+            configData.AddDynamic("apiEndpoint", ConfigApiEndpoint);
+
             var sort = new SingleSelectConfigurationItem("Sort requested from site", new Dictionary<string, string>
             {
                 {"last", "created"},
@@ -78,7 +81,7 @@ namespace Jackett.Common.Indexers
             { Value = "last" };
             configData.AddDynamic("sort", sort);
 
-            AddCategoryMapping(4, TorznabCatType.XXX, "XXX (18+)");
+            //AddCategoryMapping(4, TorznabCatType.XXX, "XXX (18+)"); // 3x is not supported by API #11848
             AddCategoryMapping(14, TorznabCatType.MoviesSD, "Movies/XVID");
             AddCategoryMapping(17, TorznabCatType.MoviesSD, "Movies/x264");
             AddCategoryMapping(18, TorznabCatType.TVSD, "TV Episodes");
@@ -134,7 +137,8 @@ namespace Jackett.Common.Indexers
         protected override async Task<IEnumerable<ReleaseInfo>> PerformQuery(TorznabQuery query)
             => await PerformQueryWithRetry(query, true);
 
-        private async Task<IEnumerable<ReleaseInfo>> PerformQueryWithRetry(TorznabQuery query, bool retry) {
+        private async Task<IEnumerable<ReleaseInfo>> PerformQueryWithRetry(TorznabQuery query, bool retry)
+        {
             var releases = new List<ReleaseInfo>();
 
             // check the token and renewal if necessary

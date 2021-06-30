@@ -12,6 +12,9 @@ namespace Jackett.Common.Indexers
     [ExcludeFromCodeCoverage]
     public class RetroFlix : SpeedAppTracker
     {
+        protected override string ItemsPerPage => "90";
+        protected override bool UseP2PReleaseName => true;
+
         public override string[] LegacySiteLinks { get; protected set; } = {
             "https://retroflix.net/"
         };
@@ -54,7 +57,7 @@ namespace Jackett.Common.Indexers
 
             // requestDelay for API Limit (1 request per 2 seconds)
             webclient.requestDelay = 2.1;
- 
+
             AddCategoryMapping(401, TorznabCatType.Movies, "Movies");
             AddCategoryMapping(402, TorznabCatType.TV, "TV Series");
             AddCategoryMapping(406, TorznabCatType.AudioVideo, "Music Videos");

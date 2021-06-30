@@ -1,9 +1,9 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Collections.Generic;
 using System.Threading.Tasks;
-using System.Linq;
 using System.Xml;
 using Jackett.Common.Models;
 using Jackett.Common.Models.IndexerConfig;
@@ -22,6 +22,11 @@ namespace Jackett.Common.Indexers
             { "1080p", 1332 }, // ~1.3GiB
             { "720p", 700 },
             { "540p", 350 }
+        };
+
+        public override string[] AlternativeSiteLinks { get; protected set; } = {
+            "https://www.erai-raws.info/",
+            "https://erairaws.nocensor.space/"
         };
 
         public EraiRaws(IIndexerConfigurationService configService, Utils.Clients.WebClient wc, Logger l,
@@ -50,14 +55,14 @@ namespace Jackett.Common.Indexers
 
             // Add note that download stats are not available
             configData.AddDynamic(
-                "download-stats-unavailable", 
+                "download-stats-unavailable",
                 new DisplayInfoConfigurationItem("", "<p>Please note that the following stats are not available for this indexer. Default values are used instead. </p><ul><li>Size</li><li>Seeders</li><li>Leechers</li><li>Download Factor</li><li>Upload Factor</li></ul>")
             );
 
             // Config item for title detail parsing
             configData.AddDynamic("title-detail-parsing", new BoolConfigurationItem("Enable Title Detail Parsing"));
             configData.AddDynamic(
-                "title-detail-parsing-help", 
+                "title-detail-parsing-help",
                 new DisplayInfoConfigurationItem("", "Title Detail Parsing will attempt to determine the season and episode number from the release names and reformat them as a suffix in the format S1E1. If successful, this should provide better matching in applications such as Sonarr.")
             );
 
@@ -87,7 +92,7 @@ namespace Jackett.Common.Indexers
 
             return IndexerConfigurationStatus.Completed;
         }
-        
+
         protected override async Task<IEnumerable<ReleaseInfo>> PerformQuery(TorznabQuery query)
         {
             var feedItems = await GetItemsFromFeed();
@@ -142,11 +147,14 @@ namespace Jackett.Common.Indexers
                     continue;
                 }
 
-                if (releaseInfo.Link == null)
+                if (releaseInfo.MagnetLink == null)
                 {
                     logger.Warn($"Failed to parse {DisplayName} RSS feed item '{fi.Title}' due to malformed link URI.");
                     continue;
                 }
+
+                // Run the title parser for the details link
+                releaseInfo.DetailsLink = new Uri(string.Format("{0}anime-list/{1}", SiteLink, titleParser.GetUrlSlug(releaseInfo.Title)));
 
                 // If enabled, perform detailed title parsing
                 if (IsTitleDetailParsingEnabled)
@@ -176,8 +184,9 @@ namespace Jackett.Common.Indexers
                 yield return new ReleaseInfo
                 {
                     Title = string.Concat(fi.Title, " - ", fi.Quality),
-                    Guid = fi.Link,
-                    MagnetUri = fi.Link,
+                    Guid = fi.MagnetLink,
+                    MagnetUri = fi.MagnetLink,
+                    Details = fi.DetailsLink,
                     PublishDate = fi.PublishDate.Value.ToLocalTime().DateTime,
                     Category = MapTrackerCatToNewznab("1"),
 
@@ -231,7 +240,7 @@ namespace Jackett.Common.Indexers
                 var title = rssItem.SelectSingleNode("title")?.InnerText;
                 var link = rssItem.SelectSingleNode("link")?.InnerText;
                 var publishDate = rssItem.SelectSingleNode("pubDate")?.InnerText;
-                
+
                 if (string.IsNullOrWhiteSpace(title) ||
                     string.IsNullOrWhiteSpace(link) ||
                     string.IsNullOrWhiteSpace(publishDate))
@@ -273,7 +282,7 @@ namespace Jackett.Common.Indexers
 
                 if (Uri.TryCreate(feedItem.Link, UriKind.Absolute, out Uri magnetUri))
                 {
-                    Link = magnetUri;
+                    MagnetLink = magnetUri;
                 }
 
                 if (DateTimeOffset.TryParse(feedItem.PublishDate, out DateTimeOffset publishDate))
@@ -297,7 +306,9 @@ namespace Jackett.Common.Indexers
 
             public string Title { get; set; }
 
-            public Uri Link { get; }
+            public Uri MagnetLink { get; }
+
+            public Uri DetailsLink { get; set; }
 
             public DateTimeOffset? PublishDate { get; }
         }
@@ -316,13 +327,15 @@ namespace Jackett.Common.Indexers
                 { " – (?<detail>[0-9]+) ", " – " } // "<title> – <episode> ..." - NOT A HYPHEN!
             };
 
+            private const string TITLE_URL_SLUG_REGEX = @"^(?<url_slug>.+) –";
+
             public string Parse(string title)
             {
                 var results = SearchTitleForDetails(title, new Dictionary<string, Dictionary<string, string>> {
                     { "episode", DETAIL_SEARCH_EPISODE },
                     { "season", DETAIL_SEARCH_SEASON }
                 });
-                
+
                 var seasonEpisodeIdentifier = string.Concat(
                     PrefixOrDefault("S", results.details["season"]).Trim(),
                     PrefixOrDefault("E", results.details["episode"]).Trim()
@@ -340,7 +353,7 @@ namespace Jackett.Common.Indexers
                         results.strippedTitle.Substring(strangeHyphenPosition + 1).Trim()
                     ).Trim();
                 }
-                                
+
                 return string.Concat(
                     results.strippedTitle.Trim(),
                     " ",
@@ -348,7 +361,26 @@ namespace Jackett.Common.Indexers
                 ).Trim();
             }
 
-            private static (string strippedTitle, Dictionary<string, string> details) SearchTitleForDetails(string title, Dictionary<string, Dictionary<string,string>> definition)
+            public string GetUrlSlug(string title)
+            {
+                var match = Regex.Match(title, TITLE_URL_SLUG_REGEX, RegexOptions.IgnoreCase, TimeSpan.FromSeconds(0.5));
+                if (!match.Success)
+                {
+                    return null;
+                }
+
+                var urlSlug = match.Groups["url_slug"].Value.ToLowerInvariant();
+                urlSlug = Regex.Replace(urlSlug, "[^a-zA-Z0-9]", "-");
+                urlSlug = urlSlug.Trim('-');
+                while (urlSlug.Contains("--"))
+                {
+                    urlSlug = urlSlug.Replace("--", "-");
+                }
+
+                return urlSlug;
+            }
+
+            private static (string strippedTitle, Dictionary<string, string> details) SearchTitleForDetails(string title, Dictionary<string, Dictionary<string, string>> definition)
             {
                 Dictionary<string, string> details = new Dictionary<string, string>();
                 foreach (var search in definition)
@@ -365,7 +397,7 @@ namespace Jackett.Common.Indexers
             {
                 foreach (var srp in searchReplacePatterns)
                 {
-                    var match = Regex.Match(title, srp.Key, RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(0.5));
+                    var match = Regex.Match(title, srp.Key, RegexOptions.IgnoreCase, TimeSpan.FromSeconds(0.5));
                     if (match.Success)
                     {
                         string detail = match.Groups["detail"].Value;

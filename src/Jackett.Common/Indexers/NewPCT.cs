@@ -82,8 +82,8 @@ namespace Jackett.Common.Indexers
 
         private readonly int _maxDailyPages = 1;
         private readonly int _maxMoviesPages = 6;
-        private readonly int[] _allTvCategories = (new [] {TorznabCatType.TV }).Concat(TorznabCatType.TV.SubCategories).Select(c => c.ID).ToArray();
-        private readonly int[] _allMoviesCategories = (new [] { TorznabCatType.Movies }).Concat(TorznabCatType.Movies.SubCategories).Select(c => c.ID).ToArray();
+        private readonly int[] _allTvCategories = (new[] { TorznabCatType.TV }).Concat(TorznabCatType.TV.SubCategories).Select(c => c.ID).ToArray();
+        private readonly int[] _allMoviesCategories = (new[] { TorznabCatType.Movies }).Concat(TorznabCatType.Movies.SubCategories).Select(c => c.ID).ToArray();
 
         private bool _includeVo;
         private bool _filterMovies;
@@ -101,7 +101,9 @@ namespace Jackett.Common.Indexers
         public override string[] AlternativeSiteLinks { get; protected set; } = {
             "https://pctmix.com/",
             "https://pctmix1.com/",
-            "https://pctreload1.com/"
+            "https://pctreload1.com/",
+            "https://maxitorrent.com",
+            "https://pctmix1.unblockit.li/"
         };
 
         public override string[] LegacySiteLinks { get; protected set; } = {
@@ -124,7 +126,8 @@ namespace Jackett.Common.Indexers
                    name: "NewPCT",
                    description: "NewPCT - Descargar peliculas, series y estrenos torrent gratis",
                    link: "https://pctmix.com/",
-                   caps: new TorznabCapabilities {
+                   caps: new TorznabCapabilities
+                   {
                        TvSearchParams = new List<TvSearchParam>
                        {
                            TvSearchParam.Q, TvSearchParam.Season, TvSearchParam.Ep
@@ -178,9 +181,10 @@ namespace Jackett.Common.Indexers
 
         public override async Task<byte[]> Download(Uri linkParam)
         {
-            var results = await RequestWithCookiesAndRetryAsync(linkParam.AbsoluteUri);
+            var downloadLink = linkParam.AbsoluteUri.Replace("/descargar/", "/descargar/torrent/");
 
-            var uriLink = ExtractDownloadUri(results.ContentString, linkParam.AbsoluteUri);
+            var results = await RequestWithCookiesAndRetryAsync(downloadLink);
+            var uriLink = ExtractDownloadUri(results.ContentString, downloadLink);
             if (uriLink == null)
                 throw new Exception("Download link not found!");
 
@@ -551,12 +555,13 @@ namespace Jackett.Common.Indexers
                         if (titleLower.Contains("[web screener]") || titleLower.Contains("[hd-tc]"))
                             quality = "TS Screener";
                     }
-                    else if  (titleParts.Length > 2)
+                    else if (titleParts.Length > 2)
                         quality = titleParts[1].Replace("]", "").Replace("MKV", "").Trim();
 
                     // we have to guess the language (words DUAL or MULTI are not supported in Radarr)
                     var language = "spanish";
-                    if (titleLower.Contains("latino")) language += " latino";
+                    if (titleLower.Contains("latino"))
+                        language += " latino";
                     if ((titleLower.Contains("castellano") && titleLower.Contains("ingles")) ||
                         (titleLower.Contains("spanish") && titleLower.Contains("english")) ||
                         titleLower.Contains("[es-en]") || titleLower.Contains("multilenguaje"))
@@ -625,7 +630,7 @@ namespace Jackett.Common.Indexers
             };
 
             //Sanitize
-            title = title.Replace("-", "").Replace("(", "").Replace(")", "");
+            title = title.Replace("-", "");
             title = Regex.Replace(title, @"\s+", " ");
 
             if (releaseType == ReleaseType.Tv)

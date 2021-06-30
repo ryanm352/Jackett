@@ -62,10 +62,12 @@ login:
     - selector: font:contains("Incorrect")
   test:
     path: torrent/index.php
+    selector: a[href^="usercp.php"]
 
 download:
-  selector: a[href^="download.php?id="]
-  attribute: href
+  selectors:
+    - selector: a[href^="download.php?id="]
+      attribute: href
 
 search:
   paths:
